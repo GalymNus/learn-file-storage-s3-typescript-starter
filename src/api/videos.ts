@@ -7,6 +7,8 @@ import { type ApiConfig } from "../config";
 import { getVideo, updateVideo } from "../db/videos";
 import { respondWithJSON } from "./json";
 import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
+import { getVideoAspectRatio, processVideoForFastStart } from "../app/helpers";
+import { rm } from "fs/promises";
 
 
 const MAX_VIDEO_UPLOAD_SIZE = 1 << 30;
@@ -41,22 +43,27 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
       let newLocalUrl;
       const fileString = Buffer.from(fileData);
       const randomFileName = randomBytes(32).toString("hex");
+      let key = `${randomFileName}.mp4`;
+      let savedFile;
       try {
-        const pathTemplate = `videos/${randomFileName}.mp4`;
+        const pathTemplate = `videos/${key}`;
         newLocalUrl = path.join(cfg.assetsRoot, pathTemplate);
-        Bun.write(newLocalUrl, fileString);
+        savedFile = await Bun.write(newLocalUrl, fileString);
       } catch (e) {
         console.log("error", e);
       }
       if (newLocalUrl) {
-        const key = `${randomFileName}.mp4`;
-        const bunFile = Bun.file(newLocalUrl);
+        const aspectRatio = await getVideoAspectRatio(newLocalUrl);
+        const processedVideoPath = await processVideoForFastStart(newLocalUrl);
+        key = `${aspectRatio}/${key}`;
+        const bunFile = Bun.file(processedVideoPath);
         const s3file = cfg.s3Client.file(key, { bucket: cfg.s3Bucket });
         await s3file.write(bunFile, { type: mediaType });
-        const s3FilePathTemplate = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${randomFileName}.mp4`
+        const s3FilePathTemplate = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${key}`
         const updatedVideo = { ...video, id: videoId, videoURL: s3FilePathTemplate };
         updateVideo(cfg.db, updatedVideo);
         bunFile.delete();
+        await rm(newLocalUrl, { force: true });
         return respondWithJSON(200, { video: updatedVideo });
       }
     }
