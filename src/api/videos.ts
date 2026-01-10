@@ -59,12 +59,12 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
         const bunFile = Bun.file(processedVideoPath);
         const s3file = cfg.s3Client.file(key, { bucket: cfg.s3Bucket });
         await s3file.write(bunFile, { type: mediaType });
-        const s3FilePathTemplate = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${key}`
+        const s3FilePathTemplate = `https://${cfg.s3CfDistribution}/${key}`
         const updatedVideo = { ...video, id: videoId, videoURL: s3FilePathTemplate };
         updateVideo(cfg.db, updatedVideo);
         bunFile.delete();
         await rm(newLocalUrl, { force: true });
-        return respondWithJSON(200, { video: updatedVideo });
+        return respondWithJSON(200, video);
       }
     }
   }
