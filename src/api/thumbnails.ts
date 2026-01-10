@@ -58,7 +58,7 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
       } catch (e) {
         console.log("error", e);
       }
-      const newThumbnailURL = `http://localhost:${cfg.port}/assets/${randomFileName}.${extention}`;
+      const newThumbnailURL = `http://localhost:${cfg.port}/assets/thumbnails/${randomFileName}.${extention}`;
       const updatedVideo = { ...video, thumbnailURL: newThumbnailURL };
       updateVideo(cfg.db, updatedVideo);
       return respondWithJSON(200, { video: updatedVideo });
